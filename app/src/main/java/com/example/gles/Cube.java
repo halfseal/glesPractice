@@ -20,12 +20,13 @@ public class Cube {
           "attribute vec3 vPosition;" +
           "" +
           "uniform mat4 modelMX;" +
+          "uniform mat4 viewMX;" +
           "uniform mat4 projMX;" +
           "" +
           "varying vec3 color;" +
           "" +
           "void main() {" +
-          "  gl_Position = projMX * modelMX * vec4(vPosition, 1.0);" +
+          "  gl_Position = projMX * viewMX * modelMX * vec4(vPosition, 1.0);" +
           "  color = vPosition;" +
           "}";
 
@@ -138,6 +139,12 @@ public class Cube {
     Matrix.multiplyMM(modelMX, 0, transMX, 0, modelMX, 0);
     int pos = GLES20.glGetUniformLocation(program, "modelMX");
     GLES20.glUniformMatrix4fv(pos, 1, false, modelMX, 0);
+
+    float eyeX = 0.0f, eyeY = 0.0f, eyeZ = 3.0f;
+    float[] viewMX = new float[16];
+    Matrix.setLookAtM(viewMX, 0, eyeX, eyeY, eyeZ, eyeX, eyeY, eyeZ - 1.0f, 0.0f, 1.0f, 0.0f);
+    pos = GLES20.glGetUniformLocation(program, "viewMX");
+    GLES20.glUniformMatrix4fv(pos, 1, false, viewMX, 0);
 
 
     float ratio = (float) width / (float) height;

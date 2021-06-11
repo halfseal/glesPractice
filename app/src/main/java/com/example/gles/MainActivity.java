@@ -7,6 +7,8 @@ import android.os.SystemClock;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import java.io.IOException;
+
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
@@ -25,12 +27,18 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
     glView.setRenderer(this);
   }
 
+  Background background;
   Cube cube;
 
   @Override
   public void onSurfaceCreated(GL10 gl, EGLConfig config) {
     GLES20.glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
     cube = new Cube();
+    try {
+      background = new Background(this);
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
   }
 
   @Override
@@ -48,6 +56,12 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
     long currentTime = SystemClock.elapsedRealtime();
     float dt = (float) (currentTime - lastTime) / 1000.0f;
     lastTime = currentTime;
+
+
+
+    GLES20.glDisable(GLES20.GL_DEPTH_TEST);
+    background.draw(dt);
+    GLES20.glEnable(GLES20.GL_DEPTH_TEST);
 
     cube.draw(dt);
   }
