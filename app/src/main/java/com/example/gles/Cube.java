@@ -1,6 +1,7 @@
 package com.example.gles;
 
 import android.opengl.GLES20;
+import android.opengl.Matrix;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -18,13 +19,13 @@ public class Cube {
   private final String vscode = "" +
           "attribute vec3 vPosition;" +
           "" +
-          "uniform mat4 scaleMX;" +
-          "uniform mat4 aspectMX;" +
+          "uniform mat4 modelMX;" +
+          "uniform mat4 projMX;" +
           "" +
           "varying vec3 color;" +
           "" +
           "void main() {" +
-          "  gl_Position = aspectMX * scaleMX * vec4(vPosition, 1.0);" +
+          "  gl_Position = projMX * modelMX * vec4(vPosition, 1.0);" +
           "  color = vPosition;" +
           "}";
 
@@ -111,24 +112,40 @@ public class Cube {
     GLES20.glVertexAttribPointer(vpos, 3, GLES20.GL_FLOAT, false, 3 * 4, 0);
     GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
 
-    float ratio = (float) width / (float) height;
-    float[] aspectMX = {
-            1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, ratio, 0.0f, 0.0f,
-            0.0f, 0.0f, 1.0f, 0.0f,
-            0.0f, 0.0f, 0.0f, 1.0f
-    };
-    int pos = GLES20.glGetUniformLocation(program, "aspectMX");
-    GLES20.glUniformMatrix4fv(pos, 1, false, aspectMX, 0);
-
     float[] scaleMX = {
             0.5f, 0.0f, 0.0f, 0.0f,
             0.0f, 0.5f, 0.0f, 0.0f,
             0.0f, 0.0f, 0.5f, 0.0f,
             0.0f, 0.0f, 0.0f, 1.0f
     };
-    pos = GLES20.glGetUniformLocation(program, "scaleMX");
-    GLES20.glUniformMatrix4fv(pos, 1, false, scaleMX, 0);
+
+    float[] rotateMX = {
+            (float) Math.cos(time), (float) Math.sin(time), 0.0f, 0.0f,
+            -(float) Math.sin(time), (float) Math.cos(time), 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+    };
+
+    float[] transMX = {
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            (float) Math.cos(time), (float) Math.sin(time), -3.0f, 1.0f
+    };
+
+    float[] modelMX = new float[16];
+    Matrix.multiplyMM(modelMX, 0, rotateMX, 0, scaleMX, 0);
+    Matrix.multiplyMM(modelMX, 0, transMX, 0, modelMX, 0);
+    int pos = GLES20.glGetUniformLocation(program, "modelMX");
+    GLES20.glUniformMatrix4fv(pos, 1, false, modelMX, 0);
+
+
+    float ratio = (float) width / (float) height;
+    float[] projMX = new float[16];
+    Matrix.frustumM(projMX, 0, -ratio, ratio, -1.0f, 1.0f, 1.0f, 100.0f);
+    pos = GLES20.glGetUniformLocation(program, "projMX");
+    GLES20.glUniformMatrix4fv(pos, 1, false, projMX, 0);
+
 
     GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, iBuffer);
     GLES20.glDrawElements(GLES20.GL_TRIANGLES, iLength, GLES20.GL_UNSIGNED_SHORT, 0);
