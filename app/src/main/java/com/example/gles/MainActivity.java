@@ -25,18 +25,18 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
     glView.setRenderer(this);
   }
 
-  Triangle triangle;
+  Cube cube;
 
   @Override
   public void onSurfaceCreated(GL10 gl, EGLConfig config) {
     GLES20.glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
-    triangle = new Triangle();
+    cube = new Cube();
   }
 
   @Override
   public void onSurfaceChanged(GL10 gl, int width, int height) {
     GLES20.glViewport(0, 0, width, height);
-    triangle.changeSize(width, height);
+    cube.changeSize(width, height);
   }
 
   long lastTime = SystemClock.elapsedRealtime();
@@ -49,6 +49,6 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
     float dt = (float) (currentTime - lastTime) / 1000.0f;
     lastTime = currentTime;
 
-    triangle.draw(dt);
+    cube.draw(dt);
   }
 }
