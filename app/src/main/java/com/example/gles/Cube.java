@@ -102,7 +102,7 @@ public class Cube {
 
   float time = 0.0f;
 
-  public void draw(float dt) {
+  public void draw(float dt, float[] viewMX, float[] projMX) {
     time += dt;
 
     GLES20.glUseProgram(program);
@@ -114,9 +114,9 @@ public class Cube {
     GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
 
     float[] scaleMX = {
-            0.5f, 0.0f, 0.0f, 0.0f,
-            0.0f, 0.5f, 0.0f, 0.0f,
-            0.0f, 0.0f, 0.5f, 0.0f,
+            0.1f, 0.0f, 0.0f, 0.0f,
+            0.0f, 0.1f, 0.0f, 0.0f,
+            0.0f, 0.0f, 0.1f, 0.0f,
             0.0f, 0.0f, 0.0f, 1.0f
     };
 
@@ -131,7 +131,7 @@ public class Cube {
             1.0f, 0.0f, 0.0f, 0.0f,
             0.0f, 1.0f, 0.0f, 0.0f,
             0.0f, 0.0f, 1.0f, 0.0f,
-            (float) Math.cos(time), (float) Math.sin(time), -3.0f, 1.0f
+            0.0f, 0.0f, 0.0f, 1.0f
     };
 
     float[] modelMX = new float[16];
@@ -140,16 +140,16 @@ public class Cube {
     int pos = GLES20.glGetUniformLocation(program, "modelMX");
     GLES20.glUniformMatrix4fv(pos, 1, false, modelMX, 0);
 
-    float eyeX = 0.0f, eyeY = 0.0f, eyeZ = 3.0f;
-    float[] viewMX = new float[16];
-    Matrix.setLookAtM(viewMX, 0, eyeX, eyeY, eyeZ, eyeX, eyeY, eyeZ - 1.0f, 0.0f, 1.0f, 0.0f);
+//    float eyeX = 0.0f, eyeY = 0.0f, eyeZ = 3.0f;
+//    float[] viewMX = new float[16];
+//    Matrix.setLookAtM(viewMX, 0, eyeX, eyeY, eyeZ, eyeX, eyeY, eyeZ - 1.0f, 0.0f, 1.0f, 0.0f);
     pos = GLES20.glGetUniformLocation(program, "viewMX");
     GLES20.glUniformMatrix4fv(pos, 1, false, viewMX, 0);
 
 
-    float ratio = (float) width / (float) height;
-    float[] projMX = new float[16];
-    Matrix.frustumM(projMX, 0, -ratio, ratio, -1.0f, 1.0f, 1.0f, 100.0f);
+//    float ratio = (float) width / (float) height;
+//    float[] projMX = new float[16];
+//    Matrix.frustumM(projMX, 0, -ratio, ratio, -1.0f, 1.0f, 1.0f, 100.0f);
     pos = GLES20.glGetUniformLocation(program, "projMX");
     GLES20.glUniformMatrix4fv(pos, 1, false, projMX, 0);
 

@@ -195,10 +195,11 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
       if (isCollecting) {
         pointList.add(frame.acquirePointCloud().getPoints());
         pointCloudRenderer.update(frame.acquirePointCloud());
+      } else {
+        cube.draw(dt, viewMX, projMX);
       }
       pointCloudRenderer.draw(viewMX, projMX);
 
-      cube.draw(dt);
     } catch (CameraNotAvailableException e) {
       e.printStackTrace();
     }
