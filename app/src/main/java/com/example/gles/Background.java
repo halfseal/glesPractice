@@ -3,6 +3,7 @@ package com.example.gles;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.opengl.GLES11Ext;
 import android.opengl.GLES20;
 import android.opengl.GLUtils;
 
@@ -29,9 +30,11 @@ public class Background {
           "}";
 
   private final String fscode = "" +
+          "#extension GL_OES_EGL_image_external : require\n" +
+          "" +
           "precision mediump float;" +
           "" +
-          "uniform sampler2D tex;" +
+          "uniform samplerExternalOES tex;" +
           "" +
           "varying vec2 tc;" +
           "" +
@@ -41,14 +44,15 @@ public class Background {
 
   public Background(Context context) throws IOException {
     float[] vertex = {
-            1.0f, 1.0f, 0.0f, /*x, y, z*/ 1.0f, 1.0f,
+            1.0f, 1.0f, 0.0f, 0.0f, 0.0f,
             -1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
-            -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+            -1.0f, -1.0f, 0.0f, 1.0f, 1.0f,
 
-            -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+            -1.0f, -1.0f, 0.0f, 1.0f, 1.0f,
             1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
-            1.0f, 1.0f, 0.0f, 1.0f, 1.0f
+            1.0f, 1.0f, 0.0f, 0.0f, 0.0f
     };
+
     ByteBuffer bb = ByteBuffer.allocateDirect(vertex.length * 4);
     bb.order(ByteOrder.nativeOrder());
     FloatBuffer vb = bb.asFloatBuffer();
@@ -80,14 +84,14 @@ public class Background {
     GLES20.glGenTextures(1, textures, 0);
     texID = textures[0];
 
-    Bitmap texBitmap = BitmapFactory.decodeStream(context.getAssets().open("frame1.png"));
-    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texID);
-    GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, texBitmap, 0);
-    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
-    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
-    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
-    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
-    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
+//    Bitmap texBitmap = BitmapFactory.decodeStream(context.getAssets().open("frame1.png"));
+    GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, texID);
+//    GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, texBitmap, 0);
+    GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
+    GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
+    GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
+    GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+    GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0);
   }
 
   float time = 0.0f;
@@ -108,9 +112,8 @@ public class Background {
     GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
 
 
-
     GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texID);
+    GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, texID);
     int pos = GLES20.glGetUniformLocation(program, "tex");
     GLES20.glUniform1i(pos, GLES20.GL_TEXTURE0);
 
