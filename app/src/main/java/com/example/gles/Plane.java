@@ -26,10 +26,6 @@ public class Plane {
     this.checkNormal(z_dir);
   }
 
-  public float[] getPlaneVertex() {
-    return planeVertex;
-  }
-
   protected void calNormal() {
     float[] vec1 = {lr[0] - ll[0], lr[1] - ll[1], lr[2] - ll[2], 1f};
     float[] vec2 = {ul[0] - ll[0], ul[1] - ll[1], ul[2] - ll[2], 1f};
