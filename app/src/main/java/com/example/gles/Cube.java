@@ -14,7 +14,7 @@ public class Cube {
 
   int program;
 
-  int width, height;
+  float[] xyz = {0f, 0f, 0f};
 
   private final String vscode = "" +
           "attribute vec3 vPosition;" +
@@ -102,9 +102,22 @@ public class Cube {
 
   float time = 0.0f;
 
-  public void draw(float dt, float[] viewMX, float[] projMX) {
+  public void update(float dt, Plane plane) {
     time += dt;
 
+    float[] norm = plane.normal;
+
+    float[] p0 = plane.ll;
+    float[] p = {xyz[0] - p0[0], xyz[1] - p0[1], xyz[2] - p0[2]};
+    float pDotNorm = p[0] * norm[0] + p[1] * norm[1] + p[2] * norm[2];
+    if (pDotNorm < 0.01f) return;
+
+    xyz[0] -= norm[0] * 0.05f * dt;
+    xyz[1] -= norm[1] * 0.05f * dt;
+    xyz[2] -= norm[2] * 0.05f * dt;
+  }
+
+  public void draw(float[] viewMX, float[] projMX) {
     GLES20.glUseProgram(program);
 
     GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vBuffer);
@@ -114,9 +127,9 @@ public class Cube {
     GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
 
     float[] scaleMX = {
-            0.1f, 0.0f, 0.0f, 0.0f,
-            0.0f, 0.1f, 0.0f, 0.0f,
-            0.0f, 0.0f, 0.1f, 0.0f,
+            0.01f, 0.0f, 0.0f, 0.0f,
+            0.0f, 0.01f, 0.0f, 0.0f,
+            0.0f, 0.0f, 0.01f, 0.0f,
             0.0f, 0.0f, 0.0f, 1.0f
     };
 
@@ -131,28 +144,21 @@ public class Cube {
             1.0f, 0.0f, 0.0f, 0.0f,
             0.0f, 1.0f, 0.0f, 0.0f,
             0.0f, 0.0f, 1.0f, 0.0f,
-            0.0f, 0.0f, 0.0f, 1.0f
+            xyz[0], xyz[1], xyz[2], 1.0f
     };
 
     float[] modelMX = new float[16];
     Matrix.multiplyMM(modelMX, 0, rotateMX, 0, scaleMX, 0);
     Matrix.multiplyMM(modelMX, 0, transMX, 0, modelMX, 0);
+
     int pos = GLES20.glGetUniformLocation(program, "modelMX");
     GLES20.glUniformMatrix4fv(pos, 1, false, modelMX, 0);
 
-//    float eyeX = 0.0f, eyeY = 0.0f, eyeZ = 3.0f;
-//    float[] viewMX = new float[16];
-//    Matrix.setLookAtM(viewMX, 0, eyeX, eyeY, eyeZ, eyeX, eyeY, eyeZ - 1.0f, 0.0f, 1.0f, 0.0f);
     pos = GLES20.glGetUniformLocation(program, "viewMX");
     GLES20.glUniformMatrix4fv(pos, 1, false, viewMX, 0);
 
-
-//    float ratio = (float) width / (float) height;
-//    float[] projMX = new float[16];
-//    Matrix.frustumM(projMX, 0, -ratio, ratio, -1.0f, 1.0f, 1.0f, 100.0f);
     pos = GLES20.glGetUniformLocation(program, "projMX");
     GLES20.glUniformMatrix4fv(pos, 1, false, projMX, 0);
-
 
     GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, iBuffer);
     GLES20.glDrawElements(GLES20.GL_TRIANGLES, iLength, GLES20.GL_UNSIGNED_SHORT, 0);
@@ -160,10 +166,4 @@ public class Cube {
 
     GLES20.glDisableVertexAttribArray(vpos);
   }
-
-  public void changeSize(int width, int height) {
-    this.width = width;
-    this.height = height;
-  }
-
 }

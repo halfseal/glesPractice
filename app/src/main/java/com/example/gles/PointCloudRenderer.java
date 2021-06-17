@@ -63,24 +63,13 @@ public class PointCloudRenderer {
     GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
   }
 
-  public void fix(ArrayList<FloatBuffer> pointList) {
-    int length = 0;
-    for (FloatBuffer fb : pointList) {
-      fb.position(0);
-      length += fb.remaining();
-    }
+  public void fix(FloatBuffer pointsBuffer) {
+    pointsBuffer.position(0);
 
-    FloatBuffer vb = ByteBuffer.allocateDirect(length * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
-    for (FloatBuffer fb : pointList) {
-      fb.position(0);
-      vb.put(fb);
-    }
-    vb.position(0);
-
-    numPoints = length / 4;
+    numPoints = pointsBuffer.remaining() / 4;
 
     GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vBuffer);
-    GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, vb.remaining() * 4, vb, GLES20.GL_DYNAMIC_DRAW);
+    GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, pointsBuffer.remaining() * 4, pointsBuffer, GLES20.GL_DYNAMIC_DRAW);
     GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
   }
 

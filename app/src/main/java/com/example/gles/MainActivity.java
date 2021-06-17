@@ -4,6 +4,8 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
+import android.opengl.Matrix;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.view.WindowManager;
@@ -24,7 +26,6 @@ import com.google.ar.core.exceptions.UnavailableDeviceNotCompatibleException;
 import com.google.ar.core.exceptions.UnavailableSdkTooOldException;
 import com.google.ar.core.exceptions.UnavailableUserDeclinedInstallationException;
 
-import java.io.IOException;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
 
@@ -36,22 +37,33 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
 
   boolean installRequested = false;
   Session session;
+  Camera camera;
 
+  SimpleDraw forDebugging;
   Background background;
-  Cube cube;
+  ArrayList<Cube> cubes;
+
   PointCloudRenderer pointCloudRenderer;
+
+  PointCollector pointCollector;
 
   Button recordButton;
 
   boolean isCollecting = false;
-  ArrayList<FloatBuffer> pointList = new ArrayList<>();
+  boolean isPointPicked = false;
+
+  FindPlane findPlane = null;
+
+  int seedID = -1;
+  float[] seedPointArr = new float[]{0.0f, 0.0f, 0.0f, 1.0f};
 
   @SuppressLint("ClickableViewAccessibility")
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
-    setContentView(R.layout.activity_main);
+    this.getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
+    setContentView(R.layout.activity_main);
     glView = (GLSurfaceView) findViewById(R.id.surfaceView);
     glView.setEGLContextClientVersion(2);
     glView.setPreserveEGLContextOnPause(true);
@@ -61,14 +73,46 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
     recordButton = (Button) findViewById(R.id.recordButton);
     recordButton.setOnClickListener(l -> {
       if (isCollecting) {
-        isCollecting = false;
+        // collecting 끝내기 위해 버튼 누름
         glView.queueEvent(() -> {
-          pointCloudRenderer.fix(pointList);
+          pointCloudRenderer.fix(pointCollector.getPointBuffer());
         });
+
+        isCollecting = false;
       } else {
+        // collecting 시작하기 위해 버튼 누름
         isCollecting = true;
-        pointList = new ArrayList<>();
+        isPointPicked = false;
+        findPlane = null;
+        cubes.clear();
+        pointCollector = new PointCollector();
       }
+    });
+
+    glView.setOnTouchListener((view, event) -> {
+      if (findPlane != null && findPlane.plane != null) {
+        glView.queueEvent(() -> {
+          Cube cube = new Cube();
+          cube.xyz = new float[]{camera.getPose().tx(), camera.getPose().ty(), camera.getPose().tz()};
+          cubes.add(cube);
+        });
+      } else if (pointCollector.isFiltered) {
+        float[] rayInfo = rayPicking(event.getX(), event.getY(), glView.getMeasuredWidth(), glView.getMeasuredHeight(), camera);
+        float[] ray_origin = new float[]{rayInfo[0], rayInfo[1], rayInfo[2]};
+        float[] ray_dir = new float[]{rayInfo[3], rayInfo[4], rayInfo[5]};
+        pickPoint(pointCollector.getPointBuffer(), ray_origin, ray_dir);
+
+        isPointPicked = true;
+
+        findPlane = new FindPlane(pointCollector.getPointBuffer(), seedID, camera);
+        if (findPlane.getStatus() == AsyncTask.Status.FINISHED || findPlane.getStatus() == AsyncTask.Status.RUNNING) {
+          findPlane.cancel(true);
+          findPlane = new FindPlane(pointCollector.getPointBuffer(), seedID, camera);
+        }
+        findPlane.execute();
+        return true;
+      }
+      return false;
     });
   }
 
@@ -144,13 +188,12 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
   @Override
   public void onSurfaceCreated(GL10 gl, EGLConfig config) {
     GLES20.glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
-    cube = new Cube();
-    try {
-      background = new Background(this);
-      pointCloudRenderer = new PointCloudRenderer();
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
+    cubes = new ArrayList<>();
+
+    forDebugging = new SimpleDraw();
+    pointCollector = new PointCollector();
+    pointCloudRenderer = new PointCloudRenderer();
+    background = new Background();
   }
 
   int width = 1, height = 1;
@@ -161,7 +204,6 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
     this.height = height;
 
     GLES20.glViewport(0, 0, width, height);
-    cube.changeSize(width, height);
   }
 
   long lastTime = SystemClock.elapsedRealtime();
@@ -175,6 +217,12 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
       session.setDisplayGeometry(((WindowManager) this.getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay().getRotation(), width, height);
 
       Frame frame = session.update();
+      camera = frame.getCamera();
+
+      float[] projMX = new float[16];
+      camera.getProjectionMatrix(projMX, 0, 0.1f, 100.0f);
+      float[] viewMX = new float[16];
+      camera.getViewMatrix(viewMX, 0);
 
       GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
 
@@ -182,27 +230,99 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
       float dt = (float) (currentTime - lastTime) / 1000.0f;
       lastTime = currentTime;
 
-      GLES20.glDisable(GLES20.GL_DEPTH_TEST);
-      background.draw(dt);
-      GLES20.glEnable(GLES20.GL_DEPTH_TEST);
-
-      Camera camera = frame.getCamera();
-      float[] projMX = new float[16];
-      camera.getProjectionMatrix(projMX, 0, 0.1f, 100.0f);
-      float[] viewMX = new float[16];
-      camera.getViewMatrix(viewMX, 0);
+      background.draw(frame);
 
       if (isCollecting) {
-        pointList.add(frame.acquirePointCloud().getPoints());
+        pointCollector.push(frame.acquirePointCloud());
         pointCloudRenderer.update(frame.acquirePointCloud());
-      } else {
-        cube.draw(dt, viewMX, projMX);
       }
       pointCloudRenderer.draw(viewMX, projMX);
 
+      for (Cube cube : cubes) {
+        cube.update(dt, findPlane.plane);
+        cube.draw(viewMX, projMX);
+      }
+
+      if (isPointPicked)
+        forDebugging.draw(seedPointArr, GLES20.GL_POINTS, 4, 1f, 0f, 0f, viewMX, projMX);
+
+      if (findPlane != null && findPlane.plane != null) {
+        float[] pointForDrawingPlane = {
+                findPlane.plane.ll[0], findPlane.plane.ll[1], findPlane.plane.ll[2],
+                findPlane.plane.lr[0], findPlane.plane.lr[1], findPlane.plane.lr[2],
+                findPlane.plane.ur[0], findPlane.plane.ur[1], findPlane.plane.ur[2],
+                findPlane.plane.ll[0], findPlane.plane.ll[1], findPlane.plane.ll[2],
+                findPlane.plane.ur[0], findPlane.plane.ur[1], findPlane.plane.ur[2],
+                findPlane.plane.ul[0], findPlane.plane.ul[1], findPlane.plane.ul[2],
+        };
+        forDebugging.draw(pointForDrawingPlane, GLES20.GL_TRIANGLES, 3, 0.5f, 0.5f, 0f, viewMX, projMX);
+      }
     } catch (CameraNotAvailableException e) {
       e.printStackTrace();
     }
   }
 
+  float[] rayPicking(float xPx, float yPx, int screenWidth, int screenHeight, Camera camera) {
+    float x = 2.0f * xPx / screenWidth - 1.0f;
+    float y = 1.0f - 2.0f * yPx / screenHeight;
+
+    float[] projMX = new float[16];
+    camera.getProjectionMatrix(projMX, 0, 0.1f, 100.0f);
+    float[] inverseProjMX = new float[16];
+    Matrix.invertM(inverseProjMX, 0, projMX, 0);
+
+    float[] viewMX = new float[16];
+    camera.getViewMatrix(viewMX, 0);
+    float[] inverseViewMX = new float[16];
+    Matrix.invertM(inverseViewMX, 0, viewMX, 0);
+
+    float[] ray_clip = new float[]{x, y, -1f, 1f};
+
+    float[] ray_eye = new float[4];
+    Matrix.multiplyMV(ray_eye, 0, inverseProjMX, 0, ray_clip, 0);
+    ray_eye = new float[]{ray_eye[0], ray_eye[1], -1.0f, 0.0f};
+
+    float[] ray_wor = new float[4];
+    Matrix.multiplyMV(ray_wor, 0, inverseViewMX, 0, ray_eye, 0);
+
+    float ray_wor_length = (float) Math.sqrt(ray_wor[0] * ray_wor[0] + ray_wor[1] * ray_wor[1] + ray_wor[2] * ray_wor[2]);
+
+    float[] out = new float[6];
+
+    // 카메라의 world space 좌표
+    out[0] = camera.getPose().tx();
+    out[1] = camera.getPose().ty();
+    out[2] = camera.getPose().tz();
+
+    // ray의 방향벡터
+    out[3] = ray_wor[0] / ray_wor_length;
+    out[4] = ray_wor[1] / ray_wor_length;
+    out[5] = ray_wor[2] / ray_wor_length;
+
+    return out;
+  }
+
+  public void pickPoint(FloatBuffer filterPoints, float[] camera, float[] ray) {
+    // camera: 카메라의 world space 위치(x,y,z), ray : ray의 방향벡터
+    float minDistanceSq = Float.MAX_VALUE;
+
+    filterPoints.rewind();
+
+    for (int i = 0; i < filterPoints.remaining(); i += 4) {
+      float[] point = new float[]{filterPoints.get(i), filterPoints.get(i + 1), filterPoints.get(i + 2), filterPoints.get(i + 3)};
+      float[] product = new float[]{point[0] - camera[0], point[1] - camera[1], point[2] - camera[2], 1.0f};
+
+      float distanceSq = product[0] * product[0] + product[1] * product[1] + product[2] * product[2];
+      float innerProduct = ray[0] * product[0] + ray[1] * product[1] + ray[2] * product[2];
+      distanceSq = distanceSq - (innerProduct * innerProduct);
+
+      if (distanceSq < 0.01f && distanceSq < minDistanceSq) {
+        seedPointArr[0] = point[0];
+        seedPointArr[1] = point[1];
+        seedPointArr[2] = point[2];
+        seedID = i / 4;
+        minDistanceSq = distanceSq;
+      }
+    }
+  }
 }
