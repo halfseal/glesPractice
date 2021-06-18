@@ -61,6 +61,7 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+    // 전체화면
     this.getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
     setContentView(R.layout.activity_main);
@@ -91,12 +92,14 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
 
     glView.setOnTouchListener((view, event) -> {
       if (findPlane != null && findPlane.plane != null) {
+        // 바닥을 찾은 후 화면을 터치하면 카메라의 world space 좌표만큼 translate 되는 큐브 생성
         glView.queueEvent(() -> {
           Cube cube = new Cube();
           cube.xyz = new float[]{camera.getPose().tx(), camera.getPose().ty(), camera.getPose().tz()};
           cubes.add(cube);
         });
       } else if (pointCollector.isFiltered) {
+        // 레코드버튼을 두번째 눌러서 다 점 수집을 끝낸 상태에서 화면을 터치하면 레이를 발사해서 점 선택. 그 점으로 바닥 찾기
         float[] rayInfo = rayPicking(event.getX(), event.getY(), glView.getMeasuredWidth(), glView.getMeasuredHeight(), camera);
         float[] ray_origin = new float[]{rayInfo[0], rayInfo[1], rayInfo[2]};
         float[] ray_dir = new float[]{rayInfo[3], rayInfo[4], rayInfo[5]};
@@ -189,7 +192,6 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
   public void onSurfaceCreated(GL10 gl, EGLConfig config) {
     GLES20.glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
     cubes = new ArrayList<>();
-
     forDebugging = new SimpleDraw();
     pointCollector = new PointCollector();
     pointCloudRenderer = new PointCloudRenderer();
@@ -202,7 +204,6 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
   public void onSurfaceChanged(GL10 gl, int width, int height) {
     this.width = width;
     this.height = height;
-
     GLES20.glViewport(0, 0, width, height);
   }
 
@@ -213,17 +214,21 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
     if (session == null) return;
 
     try {
+      // 배경으로 카메라 화면 입히려면 어디다 정보 넣으면 되는지 알려줄 텍스쳐 번호
       session.setCameraTextureName(background.texID);
+      // 화면 크기와 텍스쳐 크기를 맞춰주기 위한 그런...
       session.setDisplayGeometry(((WindowManager) this.getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay().getRotation(), width, height);
 
       Frame frame = session.update();
       camera = frame.getCamera();
 
+      // view matrix, projection matrix 받아오기
       float[] projMX = new float[16];
       camera.getProjectionMatrix(projMX, 0, 0.1f, 100.0f);
       float[] viewMX = new float[16];
       camera.getViewMatrix(viewMX, 0);
 
+      // 그리기 전에 버퍼 초기화
       GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
 
       long currentTime = SystemClock.elapsedRealtime();
@@ -233,6 +238,7 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
       background.draw(frame);
 
       if (isCollecting) {
+        // 매 프레임마다 보이는 특징점들을 수집하고 렌더링하기
         pointCollector.push(frame.acquirePointCloud());
         pointCloudRenderer.update(frame.acquirePointCloud());
       }
@@ -243,9 +249,11 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
         cube.draw(viewMX, projMX);
       }
 
+      // ray picking 으로 어느 점이 선택되었는지 보여주기 위함
       if (isPointPicked)
         forDebugging.draw(seedPointArr, GLES20.GL_POINTS, 4, 1f, 0f, 0f, viewMX, projMX);
 
+      // 찾은 바닥이 어떻게 생겼는지 보여주기 위함
       if (findPlane != null && findPlane.plane != null) {
         float[] pointForDrawingPlane = {
                 findPlane.plane.ll[0], findPlane.plane.ll[1], findPlane.plane.ll[2],
@@ -263,6 +271,9 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
   }
 
   float[] rayPicking(float xPx, float yPx, int screenWidth, int screenHeight, Camera camera) {
+    // https://antongerdelan.net/opengl/raycasting.html 참고
+
+    // screen space 에서 clip space 로
     float x = 2.0f * xPx / screenWidth - 1.0f;
     float y = 1.0f - 2.0f * yPx / screenHeight;
 
@@ -278,13 +289,16 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
 
     float[] ray_clip = new float[]{x, y, -1f, 1f};
 
+    // clip space 에서 view space 로
     float[] ray_eye = new float[4];
     Matrix.multiplyMV(ray_eye, 0, inverseProjMX, 0, ray_clip, 0);
     ray_eye = new float[]{ray_eye[0], ray_eye[1], -1.0f, 0.0f};
 
+    // view space 에서 world space 로
     float[] ray_wor = new float[4];
     Matrix.multiplyMV(ray_wor, 0, inverseViewMX, 0, ray_eye, 0);
 
+    // normalize 시켜주기 위해 벡터의 크기 계산
     float ray_wor_length = (float) Math.sqrt(ray_wor[0] * ray_wor[0] + ray_wor[1] * ray_wor[1] + ray_wor[2] * ray_wor[2]);
 
     float[] out = new float[6];
@@ -294,7 +308,7 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
     out[1] = camera.getPose().ty();
     out[2] = camera.getPose().tz();
 
-    // ray의 방향벡터
+    // ray의 normalized 된 방향벡터
     out[3] = ray_wor[0] / ray_wor_length;
     out[4] = ray_wor[1] / ray_wor_length;
     out[5] = ray_wor[2] / ray_wor_length;
@@ -312,6 +326,7 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
       float[] point = new float[]{filterPoints.get(i), filterPoints.get(i + 1), filterPoints.get(i + 2), filterPoints.get(i + 3)};
       float[] product = new float[]{point[0] - camera[0], point[1] - camera[1], point[2] - camera[2], 1.0f};
 
+      // 카메라 -> 특징점 벡터의 크기와, 이 벡터와 카메라 -> ray 벡터를 내적한 값을 이용해 피타고라스정리
       float distanceSq = product[0] * product[0] + product[1] * product[1] + product[2] * product[2];
       float innerProduct = ray[0] * product[0] + ray[1] * product[1] + ray[2] * product[2];
       distanceSq = distanceSq - (innerProduct * innerProduct);
